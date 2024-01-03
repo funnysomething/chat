@@ -15,7 +15,7 @@ class Message {
 }
 
 class MainApp extends StatelessWidget {
-  const MainApp({Key? key}) : super(key: key);
+  const MainApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +26,7 @@ class MainApp extends StatelessWidget {
 }
 
 class MainScreen extends StatefulWidget {
-  const MainScreen({Key? key}) : super(key: key);
+  const MainScreen({super.key});
 
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -61,7 +61,7 @@ class _MainScreenState extends State<MainScreen> {
                 return Align(
                   alignment: alignRight ? Alignment.centerRight : Alignment.centerLeft,
                   child: Container(
-                    constraints: BoxConstraints(maxWidth: 190),
+                    constraints: const BoxConstraints(maxWidth: 190),
                     child: Card(
                         color: Colors.blue,
                         child: Padding(
