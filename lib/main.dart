@@ -1,16 +1,18 @@
 import 'dart:convert';
-
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:web_socket_channel/io.dart';
 
-Map<int, List<Message>> messageList = {};
+Map<String, List<Message>> messageList = {};
 Map<String, int> NameToID = {
   "Daniel": 1,
   "Naia": 2,
   "Brandon": 3,
   "Ethan": 4,
   "Victor": 5,
-  "Kayla": 6
+  "Kayla": 6,
+  "Adi": 7
 };
 Map<int, String> IDToName = {
   1: "Daniel",
@@ -18,7 +20,8 @@ Map<int, String> IDToName = {
   3: "Brandon",
   4: "Ethan",
   5: "Victor",
-  6: "Kayla"
+  6: "Kayla",
+  7: "Adi"
 };
 List<String> contacts = [
   "Daniel",
@@ -28,7 +31,7 @@ List<String> contacts = [
   "Victor",
   "Kayla"
 ];
-int homeID = 1;
+int homeID = 7;
 
 void main() {
   runApp(const MainApp());
@@ -39,6 +42,13 @@ class Message {
   final bool fromSelf;
 
   Message(this.text, this.fromSelf);
+
+  Map<String, dynamic> toJson() {
+    return {
+      'text': text,
+      'fromSelf': fromSelf,
+    };
+  }
 }
 
 class MainApp extends StatelessWidget {
@@ -46,8 +56,18 @@ class MainApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
-      home: MainScreen(),
+    return FutureBuilder(
+      future: readFromFile(),
+      builder: (BuildContext context, AsyncSnapshot<void> snapshot) {
+        if (snapshot.connectionState == ConnectionState.done) {
+          return const MaterialApp(
+            home: MainScreen(),
+          );
+        }
+        return Container(
+          color: Colors.white,
+        );
+      },
     );
   }
 }
@@ -65,9 +85,9 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
-    _updateMessages();
     _listenForMessages();
   }
+
 
   Future<void> _listenForMessages() async {
     try {
@@ -75,9 +95,11 @@ class _MainScreenState extends State<MainScreen> {
         print('Received message: $rawMessage');
         final dynamic decodedMessage = json.decode(rawMessage);
         final String messageText = decodedMessage['message'];
-        final int chatID = decodedMessage['homeID'];
-        messageList[chatID]!.add(Message(messageText, false));
-        setState(() {});
+        final String chatID = decodedMessage['homeID'].toString();
+
+        messageList[chatID.toString()] ??= [];
+        messageList[chatID.toString()]!.add(Message(messageText, false));
+        await writeToFile();
       }
     } catch (error) {
       print("Error receiving message: $error");
@@ -92,13 +114,14 @@ class _MainScreenState extends State<MainScreen> {
         centerTitle: true,
       ),
       body: ListView.builder(
-        itemCount: messageList.length,
+        itemCount: contacts.length,
         itemBuilder: (context, index) {
           final int chatID = NameToID[contacts[index]]!;
-          final Message lastMessage = messageList[chatID]!.isNotEmpty
-              ? messageList[chatID]!.last
+          final Message lastMessage = messageList[chatID.toString()] != null &&
+                  messageList[chatID.toString()]!.isNotEmpty
+              ? messageList[chatID.toString()]!.last
               : Message("", false);
-
+          print("LastMessage: ${lastMessage.text}");
           return Card(
             elevation: 2,
             margin: const EdgeInsets.all(5),
@@ -157,6 +180,7 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   void dispose() {
+    channel.sink.close(); // Close the WebSocket channel when disposing
     super.dispose();
   }
 }
@@ -184,17 +208,17 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(IDToName[widget.chatID]!),
+        title: Text(IDToName[widget.chatID] ?? ''),
       ),
       body: Column(
         children: [
           Expanded(
             child: ListView.builder(
               shrinkWrap: true,
-              itemCount: messageList[widget.chatID]!.length,
+              itemCount: messageList[widget.chatID.toString()]?.length ?? 0,
               itemBuilder: (context, index) {
                 final bool alignRight =
-                    messageList[widget.chatID]![index].fromSelf;
+                    messageList[widget.chatID.toString()]![index].fromSelf;
                 return Align(
                   alignment:
                       alignRight ? Alignment.centerRight : Alignment.centerLeft,
@@ -205,7 +229,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       child: Padding(
                         padding: const EdgeInsets.all(10),
                         child: Text(
-                          messageList[widget.chatID]![index].text,
+                          messageList[widget.chatID.toString()]![index].text,
                           textAlign: TextAlign.left,
                         ),
                       ),
@@ -244,11 +268,23 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _sendMessage(chatID) async {
     try {
+      print(chatID);
+      print(messageList[chatID]);
+
       widget.channel.sink.add(
           '{"dest": $chatID, "message": "${_textController.text}", "homeID": $homeID}');
-      messageList[widget.chatID]!.add(Message(_textController.text, true));
+
+      if (messageList[chatID.toString()] == null) {
+        messageList[chatID.toString()] = [Message(_textController.text, true)];
+      } else {
+        messageList[chatID.toString()]!
+            .add(Message(_textController.text, true));
+      }
+      await writeToFile();
+
       _textController.clear();
       FocusScope.of(context).unfocus();
+      setState(() {});
     } catch (error) {
       print("Error sending message: $error");
     }
@@ -259,15 +295,6 @@ class _ChatScreenState extends State<ChatScreen> {
     _textController.dispose();
     super.dispose();
   }
-}
-
-void _updateMessages() {
-  messageList[1] = [];
-  messageList[2] = [];
-  messageList[3] = [];
-  messageList[4] = [];
-  messageList[5] = [];
-  messageList[6] = [];
 }
 
 Widget getIcon(int chatID) {
@@ -285,4 +312,50 @@ Widget getIcon(int chatID) {
       ),
     ),
   );
+}
+
+Future<void> writeToFile() async {
+  try {
+    final directory = await getApplicationDocumentsDirectory();
+
+    final messageListFile = File('${directory.path}/messagelist.txt');
+    String encodedlist = json.encode(messageList);
+    print(encodedlist);
+    await messageListFile.writeAsString(encodedlist);
+
+    print('Data written to files');
+  } catch (e) {
+    print("Error writing to file: $e");
+  }
+}
+
+Future<void> readFromFile() async {
+  try {
+    final directory = await getApplicationDocumentsDirectory();
+
+    final messageListFile = File('${directory.path}/messagelist.txt');
+    if (await messageListFile.exists()) {
+      final String messageListContent = await messageListFile.readAsString();
+      final Map<String, dynamic> decodedList = json.decode(messageListContent);
+
+      for (var entry in decodedList.keys) {
+        messageList[entry] = [];
+        for (var message in decodedList[entry]) {
+          messageList[entry]
+              ?.add(Message(message['text'], message['fromSelf']));
+        }
+      }
+      print("Messagelist content: $messageListContent");
+    } else {
+      print("Setting message list values to default");
+      messageList["1"] = [];
+      messageList["2"] = [];
+      messageList["3"] = [];
+      messageList["4"] = [];
+      messageList["5"] = [];
+      messageList["6"] = [];
+    }
+  } catch (e) {
+    print("Error reading from file: $e");
+  }
 }
