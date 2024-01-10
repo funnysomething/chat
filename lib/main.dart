@@ -80,31 +80,13 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  final channel = IOWebSocketChannel.connect('ws://192.168.2.128:8764/');
+  final channel = IOWebSocketChannel.connect('ws://98.237.89.87:91/');
 
   @override
   void initState() {
     super.initState();
-    _listenForMessages();
   }
 
-
-  Future<void> _listenForMessages() async {
-    try {
-      await for (var rawMessage in channel.stream) {
-        print('Received message: $rawMessage');
-        final dynamic decodedMessage = json.decode(rawMessage);
-        final String messageText = decodedMessage['message'];
-        final String chatID = decodedMessage['homeID'].toString();
-
-        messageList[chatID.toString()] ??= [];
-        messageList[chatID.toString()]!.add(Message(messageText, false));
-        await writeToFile();
-      }
-    } catch (error) {
-      print("Error receiving message: $error");
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -202,6 +184,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    _listenForMessages();
   }
 
   @override
@@ -265,6 +248,24 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
     );
   }
+  Future<void> _listenForMessages() async {
+    try {
+      await for (var rawMessage in widget.channel.stream) {
+        print('Received message: $rawMessage');
+        final dynamic decodedMessage = json.decode(rawMessage);
+        final String messageText = decodedMessage['message'];
+        final String chatID = decodedMessage['homeID'].toString();
+
+        messageList[chatID.toString()] ??= [];
+        messageList[chatID.toString()]!.add(Message(messageText, false));
+        await writeToFile();
+        setState(() {});
+        _MainScreenState().setState(() {});
+      }
+    } catch (error) {
+      print("Error receiving message: $error");
+    }
+  }
 
   Future<void> _sendMessage(chatID) async {
     try {
@@ -285,6 +286,7 @@ class _ChatScreenState extends State<ChatScreen> {
       _textController.clear();
       FocusScope.of(context).unfocus();
       setState(() {});
+      _MainScreenState().setState(() {});
     } catch (error) {
       print("Error sending message: $error");
     }
