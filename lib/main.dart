@@ -12,11 +12,33 @@ Map<String, String> contacts = {
 String username = 'thealphatwo';
 
 final channel = IOWebSocketChannel.connect('ws://192.168.2.126:8764/');
-final messageStream = StreamController<Message>.broadcast();
+final messageStream = channel.stream.asBroadcastStream();
+
+Future<bool> _login(String username, String password) async {
+  try {
+    channel.sink.add('{"type": "login", "username": "$username", "password": "$password"}');
+    var response;
+    await for (var rawMessage in messageStream) {
+      response = json.decode(rawMessage);
+      print("RESPONSE: ${response}");
+      break; // exit the loop after receiving the first message
+    }
+    if (response['Type'] == 'login'){
+      print("Checking status");
+
+      return response['Stat'] == 'true';
+    } else {
+      return false;
+    }
+  } catch(e) {
+    return false;
+  }
+}
+
 
 Future<void> _listenForMessages() async {
   try {
-    await for (var rawMessage in channel.stream) {
+    await for (var rawMessage in messageStream) {
       print('Received message: $rawMessage');
       final dynamic decodedMessage = json.decode(rawMessage);
       if (decodedMessage['type'] == "message"){
@@ -24,7 +46,6 @@ Future<void> _listenForMessages() async {
         final String chatID = decodedMessage['home'].toString();
         Message message = Message(messageText, chatID, false);
         addMessage(chatID, message);
-        messageStream.add(message);
       }
     }
   } catch (error) {
@@ -41,9 +62,7 @@ void addMessage(String chatID, Message message){
 }
 
 void main() {
-  _listenForMessages();
-  channel.sink.add('{"type": "login", "username": "$username", "password": "1234"}');
-  runApp(const MainApp());
+  runApp(MainApp());
 }
 
 class Message {
@@ -62,23 +81,114 @@ class Message {
   }
 }
 
-class MainApp extends StatelessWidget {
-  const MainApp({super.key});
+class MainApp extends StatefulWidget {
+  final bool loggedIn = false;
+
+  @override
+  _MainAppState createState() => _MainAppState();
+}
+
+class _MainAppState extends State<MainApp> {
+  bool loggedIn = false;
+
+  void setLoggedIn(bool value) {
+    setState(() {
+      loggedIn = value;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder(
-      future: placeholder(), //readFromFile(),
-      builder: (BuildContext context, AsyncSnapshot<void> snapshot) {
-        if (snapshot.connectionState == ConnectionState.done) {
-          return const MaterialApp(
-            home: MainScreen(),
+    return MaterialApp(
+      home: FutureBuilder(
+        future: placeholder(),
+        builder: (BuildContext context, AsyncSnapshot<void> snapshot) {
+          if (snapshot.connectionState == ConnectionState.done) {
+            return loggedIn ? const MainScreen() : LoginScreen(setLoggedIn: setLoggedIn);
+          }
+          return Container(
+            color: Colors.white,
           );
-        }
-        return Container(
-          color: Colors.white,
-        );
-      },
+        },
+      ),
+    );
+  }
+}
+
+
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({Key? key, required this.setLoggedIn}) : super(key: key);
+
+  final Function(bool) setLoggedIn;
+
+  @override
+  _LoginScreenState createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _usernameController = TextEditingController();
+  final _passwordController = TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Center(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                TextFormField(
+                  controller: _usernameController,
+                  decoration: InputDecoration(
+                    labelText: 'Username',
+                    border: OutlineInputBorder(),
+                    icon: Icon(Icons.person),
+                  ),
+                  validator: (value) {
+                    if (value!.isEmpty) {
+                      return 'Please enter your username';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _passwordController,
+                  decoration: InputDecoration(
+                    labelText: 'Password',
+                    border: OutlineInputBorder(),
+                    icon: Icon(Icons.lock),
+                  ),
+                  obscureText: true,
+                  validator: (value) {
+                    if (value!.isEmpty) {
+                      return 'Please enter your password';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 32),
+                ElevatedButton(
+                  onPressed: () async {
+                    if (_formKey.currentState!.validate()) {
+                      if (await _login(_usernameController.text, _passwordController.text)) {
+                        username = _usernameController.text;
+                        widget.setLoggedIn(true);
+                      }
+                    }
+                  },
+                  child: const Text('Submit'),
+                )
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -95,6 +205,7 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   void initState() {
+    _listenForMessages();
     super.initState();
   }
 
@@ -234,8 +345,6 @@ class _ChatScreenState extends State<ChatScreen> {
       // await writeToFile();
       _textController.clear();
       FocusScope.of(context).unfocus();
-      messageStream.add(message);
-
     } catch (error) {
       print("Error sending message: $error");
     }
@@ -261,7 +370,7 @@ class _ChatPreviewState extends State<ChatPreview> {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder(
-        stream: messageStream.stream, 
+        stream: messageStream,
         builder: (context, snapshot) {
           return Text(
             messageList[widget.chatID] != null &&
@@ -295,8 +404,8 @@ class Chats extends StatefulWidget {
 class _ChatsState extends State<Chats> {
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<Message>(
-      stream: messageStream.stream,
+    return StreamBuilder(
+      stream: messageStream,
       builder: (context, snapshot) {
         return ListView.builder(
           shrinkWrap: true,
