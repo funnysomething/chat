@@ -9,7 +9,7 @@ Map<String, String> contacts = {
   "thealphatwo": "Adi Satheesh",
   "miniicecream": "Daniel Zhang"
 };
-String username = 'thealphatwo';
+late String username;
 
 final channel = IOWebSocketChannel.connect('ws://192.168.2.126:8764/');
 final messageStream = channel.stream.asBroadcastStream();
@@ -35,17 +35,21 @@ Future<bool> _login(String username, String password) async {
   }
 }
 
-
 Future<void> _listenForMessages() async {
   try {
     await for (var rawMessage in messageStream) {
       print('Received message: $rawMessage');
       final dynamic decodedMessage = json.decode(rawMessage);
-      if (decodedMessage['type'] == "message"){
-        final String messageText = decodedMessage['content'];
-        final String chatID = decodedMessage['home'].toString();
-        Message message = Message(messageText, chatID, false);
-        addMessage(chatID, message);
+      String messageType = decodedMessage['Type'];
+      switch(messageType) {
+        case("message"):
+          final String messageText = decodedMessage['Content'];
+          final String chatID = decodedMessage['Home'];
+          Message message = Message(messageText, chatID, false);
+          addMessage(chatID, message);
+          break;
+        case("error"):
+          print("Error message received: ${decodedMessage['ErrorType']}");
       }
     }
   } catch (error) {
@@ -115,7 +119,6 @@ class _MainAppState extends State<MainApp> {
   }
 }
 
-
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key, required this.setLoggedIn}) : super(key: key);
 
@@ -133,58 +136,98 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Colors.grey[400]!, Colors.grey[800]!],
+          ),
+        ),
         child: Center(
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                TextFormField(
-                  controller: _usernameController,
-                  decoration: InputDecoration(
-                    labelText: 'Username',
-                    border: OutlineInputBorder(),
-                    icon: Icon(Icons.person),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Card(
+              elevation: 8,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16.0),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      Text(
+                        'Login',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey[800],
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 20),
+                      TextFormField(
+                        controller: _usernameController,
+                        decoration: InputDecoration(
+                          labelText: 'Username',
+                          prefixIcon: Icon(Icons.person, color: Colors.grey[800]),
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (value) {
+                          if (value!.isEmpty) {
+                            return 'Please enter your username';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _passwordController,
+                        decoration: InputDecoration(
+                          labelText: 'Password',
+                          prefixIcon: Icon(Icons.lock, color: Colors.grey[800]),
+                          border: OutlineInputBorder(),
+                        ),
+                        obscureText: true,
+                        validator: (value) {
+                          if (value!.isEmpty) {
+                            return 'Please enter your password';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 32),
+                      ElevatedButton(
+                        onPressed: () async {
+                          if (_formKey.currentState!.validate()) {
+                            if (await _login(_usernameController.text, _passwordController.text)) {
+                              username = _usernameController.text;
+                              widget.setLoggedIn(true);
+                            }
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          foregroundColor: Colors.white, backgroundColor: Colors.grey[800],
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8.0),
+                          ),
+                        ),
+                        child: const Padding(
+                          padding: EdgeInsets.all(12.0),
+                          child: Text(
+                            'Login',
+                            style: TextStyle(fontSize: 18),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  validator: (value) {
-                    if (value!.isEmpty) {
-                      return 'Please enter your username';
-                    }
-                    return null;
-                  },
                 ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _passwordController,
-                  decoration: InputDecoration(
-                    labelText: 'Password',
-                    border: OutlineInputBorder(),
-                    icon: Icon(Icons.lock),
-                  ),
-                  obscureText: true,
-                  validator: (value) {
-                    if (value!.isEmpty) {
-                      return 'Please enter your password';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 32),
-                ElevatedButton(
-                  onPressed: () async {
-                    if (_formKey.currentState!.validate()) {
-                      if (await _login(_usernameController.text, _passwordController.text)) {
-                        username = _usernameController.text;
-                        widget.setLoggedIn(true);
-                      }
-                    }
-                  },
-                  child: const Text('Submit'),
-                )
-              ],
+              ),
             ),
           ),
         ),
@@ -194,27 +237,28 @@ class _LoginScreenState extends State<LoginScreen> {
 }
 
 class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
+  const MainScreen({Key? key});
 
   @override
   State<MainScreen> createState() => _MainScreenState();
 }
 
 class _MainScreenState extends State<MainScreen> {
-
-
   @override
   void initState() {
     _listenForMessages();
     super.initState();
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Chat"),
+        title: const Text(
+          "Chat",
+          style: TextStyle(color: Colors.white),
+        ),
+        backgroundColor: Colors.grey[800],
         centerTitle: true,
       ),
       body: ListView.builder(
@@ -225,6 +269,10 @@ class _MainScreenState extends State<MainScreen> {
           return Card(
             elevation: 2,
             margin: const EdgeInsets.all(5),
+            color: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10.0),
+            ),
             child: InkWell(
               onTap: () {
                 Navigator.push(
@@ -253,6 +301,7 @@ class _MainScreenState extends State<MainScreen> {
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 18,
+                              color: Colors.black87,
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -404,26 +453,28 @@ class Chats extends StatefulWidget {
 class _ChatsState extends State<Chats> {
   @override
   Widget build(BuildContext context) {
+    List<Message> reverseMessageList = messageList[widget.chatID] == null? []:messageList[widget.chatID]!.reversed.toList();
     return StreamBuilder(
       stream: messageStream,
       builder: (context, snapshot) {
         return ListView.builder(
+          reverse: true,
           shrinkWrap: true,
-          itemCount: messageList[widget.chatID.toString()]?.length ?? 0,
+          itemCount: reverseMessageList.length,
           itemBuilder: (context, index) {
             final bool alignRight =
-                messageList[widget.chatID.toString()]![index].fromSelf;
+                reverseMessageList[index].fromSelf;
             return Align(
               alignment:
               alignRight ? Alignment.centerRight : Alignment.centerLeft,
               child: Container(
                 constraints: const BoxConstraints(maxWidth: 190),
                 child: Card(
-                  color: Colors.blue,
+                  color: Colors.black26,
                   child: Padding(
                     padding: const EdgeInsets.all(10),
                     child: Text(
-                      messageList[widget.chatID.toString()]![index].text,
+                      reverseMessageList[index].text,
                       textAlign: TextAlign.left,
                     ),
                   ),
