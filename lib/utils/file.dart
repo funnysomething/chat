@@ -1,7 +1,7 @@
 
 import 'dart:convert';
 import 'dart:io';
-import 'package:chat/message.dart';
+import 'package:chat/models/message.dart';
 import 'package:path_provider/path_provider.dart';
 
 Future<void> writeToFile(Map<String, List<Message>> messageList) async {
