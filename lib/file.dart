@@ -1,8 +1,7 @@
 
 import 'dart:convert';
 import 'dart:io';
-
-import 'package:chat/main.dart';
+import 'package:chat/message.dart';
 import 'package:path_provider/path_provider.dart';
 
 Future<void> writeToFile(Map<String, List<Message>> messageList) async {
@@ -33,7 +32,7 @@ Future<void> readFromFile(Map<String, List<Message>> messageList) async {
         messageList[entry] = [];
         for (var message in decodedList[entry]) {
           messageList[entry]
-              ?.add(Message(message['text'], message['sender'], message['fromSelf']));
+              ?.add(Message(message['text'], message['sender'], message['sendTime'], message['fromSelf']));
         }
       }
       print("Messagelist content: $messageListContent");

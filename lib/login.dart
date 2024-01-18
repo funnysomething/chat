@@ -1,7 +1,8 @@
 import 'dart:convert';
-
-import 'package:chat/main.dart';
+import 'package:chat/message.dart';
 import 'package:flutter/material.dart';
+
+import 'main.dart';
 
 Future<bool> _login(String username, String password) async {
   try {

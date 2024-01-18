@@ -1,4 +1,4 @@
-import 'package:chat/main.dart';
+import 'package:chat/message.dart';
 import 'package:flutter/material.dart';
 
 class Chats extends StatefulWidget {
@@ -13,9 +13,9 @@ class Chats extends StatefulWidget {
 class _ChatsState extends State<Chats> {
   @override
   Widget build(BuildContext context) {
-    List<Message> reverseMessageList = messageList[widget.chatID] == null
+    List<Message> reverseMessageList = getMessageList()[widget.chatID] == null
         ? []
-        : messageList[widget.chatID]!.reversed.toList();
+        : getMessageList()[widget.chatID]!.reversed.toList();
     return StreamBuilder(
       stream: messageStream,
       builder: (context, snapshot) {

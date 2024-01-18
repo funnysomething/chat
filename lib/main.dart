@@ -2,19 +2,18 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:chat/login.dart';
 import 'package:chat/chatscreen.dart';
+import 'package:chat/message.dart';
 import 'package:chat/contacticon.dart';
 import 'package:flutter/material.dart';
-import 'package:web_socket_channel/io.dart';
 
-Map<String, List<Message>> messageList = {};
+Map<String, String> map = {};
+
 Map<String, String> contacts = {
   "thealphatwo": "Adi Satheesh",
   "miniicecream": "Daniel Zhang"
 };
-late String username;
 
-final channel = IOWebSocketChannel.connect('ws://192.168.2.126:8764/');
-final messageStream = channel.stream.asBroadcastStream();
+late String username;
 
 Future<void> _listenForMessages() async {
   try {
@@ -26,7 +25,7 @@ Future<void> _listenForMessages() async {
         case ("message"):
           final String messageText = decodedMessage['Content'];
           final String chatID = decodedMessage['Home'];
-          Message message = Message(messageText, chatID, false);
+          Message message = Message(messageText, chatID, DateTime.now(), false);
           addMessage(chatID, message);
           break;
         case ("error"):
@@ -38,42 +37,22 @@ Future<void> _listenForMessages() async {
   }
 }
 
-void addMessage(String chatID, Message message) {
-  if (messageList[chatID.toString()] == null) {
-    messageList[chatID.toString()] = [message];
-  } else {
-    messageList[chatID.toString()]!.add(message);
-  }
-}
-
 void main() {
-  runApp(MainApp());
+  runApp(const MyApp());
 }
 
-class Message {
-  final String text;
-  final String sender;
-  final bool fromSelf;
 
-  Message(this.text, this.sender, this.fromSelf);
 
-  Map<String, dynamic> toJson() {
-    return {
-      'text': text,
-      'sender': sender,
-      'fromSelf': fromSelf,
-    };
-  }
-}
-
-class MainApp extends StatefulWidget {
+class MyApp extends StatefulWidget {
   final bool loggedIn = false;
 
+  const MyApp({super.key});
+
   @override
-  _MainAppState createState() => _MainAppState();
+  _MyAppState createState() => _MyAppState();
 }
 
-class _MainAppState extends State<MainApp> {
+class _MyAppState extends State<MyApp> {
   bool loggedIn = false;
 
   void setLoggedIn(bool value) {
@@ -103,7 +82,7 @@ class _MainAppState extends State<MainApp> {
 }
 
 class MainScreen extends StatefulWidget {
-  const MainScreen({Key? key});
+  const MainScreen({super.key});
 
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -208,9 +187,9 @@ class _ChatPreviewState extends State<ChatPreview> {
       stream: messageStream,
       builder: (context, snapshot) {
         return Text(
-          messageList[widget.chatID] != null &&
-                  messageList[widget.chatID]!.isNotEmpty
-              ? messageList[widget.chatID]!.last.text
+          getMessageList()[widget.chatID] != null &&
+              getMessageList()[widget.chatID]!.isNotEmpty
+              ? getMessageList()[widget.chatID]!.last.text
               : "",
           style: const TextStyle(
             color: Colors.grey,

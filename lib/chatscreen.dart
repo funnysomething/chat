@@ -1,5 +1,6 @@
 import 'package:chat/chat.dart';
 import 'package:chat/main.dart';
+import 'package:chat/message.dart';
 import 'package:flutter/material.dart';
 import 'package:web_socket_channel/io.dart';
 
@@ -63,7 +64,7 @@ class _ChatScreenState extends State<ChatScreen> {
       print(chatID);
       print(messageList[chatID]);
 
-      Message message = Message(_textController.text, username, true);
+      Message message = Message(_textController.text, username, DateTime.now(), true);
       widget.channel.sink.add(
           '{"type": "message", "content": "${_textController.text}", "dest": "$chatID", "home": "$username"}');
 
